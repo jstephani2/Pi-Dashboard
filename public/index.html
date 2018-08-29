@@ -1,0 +1,220 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width-device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Pi Dashboard</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.2/css/bootstrap.min.css"
+          integrity="sha384-Smlep5jCw/wG7hdkwQ/Z5nLIefveQRIY9nfy6xoR1uRYBtpZgI6339F5dgvm/e9B" crossorigin="anonymous">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"
+            integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49"
+            crossorigin="anonymous"></script>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0-alpha.1/handlebars.min.js"></script>
+    <script src="http://code.jquery.com/jquery-3.3.1.js"></script>
+
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.2/js/bootstrap.min.js"
+            integrity="sha384-o+RDsa0aLu++PJvFqy8fFScvbHFLtbvScb8AjopnFD+iEQ7wo/CG0xlczd+2O/em"
+            crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body style="background-color:#000;">
+    <h1 id="clock" class="text-right text-white m-0" style="background-color: rgba(82, 82, 82, 0.72);"></h1>
+<div id="header" class="container-fluid row p-0 m-0">
+    <input type="hidden" id="conditions-text"/>
+
+    <div id="weather" class="container-fluid col-3 align-self-start"></div>
+
+    <div id="spotify-div" class="col-9" style="background-color: rgba(82, 82, 82, 0.72);">
+        <input type="hidden" id="access_token" value=""/>
+        <input type="hidden" id="refresh_token" value=""/>
+        <input type="hidden" id="isPlaying" value=""/>
+        <input type="hidden" id="currentProgress" value=""/>
+        <input type="hidden" id="duration" value=""/>
+        <div class="container-fluid pt-5">
+            <div class="row">
+                <div class="col-4">
+                    <img class="shadow-lg mx-auto img-fluid" id="album-art" onclick="imageResize();"></img>
+                </div>
+                <div class="col-8 text-white">
+                    <h1 class="pt-3" id="song-title"></h1>
+                    <p class="lead" id="artist"></p>
+                </div>
+            </div>
+            <div class="row-6 pt-5">
+                    <div class="slidecontainer">
+                        <input type="range" min="1" max="1000" step="0.1" class="slider w-100" id="progress-slider">
+                    </div>
+                    <!-- <div class="progress-bar progress-bar-striped bg-success progress-bar-animated" role="progressbar" id="progress" style="width: 25%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div> -->
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script id="weather-template" type="text/x-handlebars-template">
+    <div class="row justify-content-start align-self-start text-white" style="background-color: rgba(82, 82, 82, 0.72);">
+        <div class="col-3 pl-5 pt-3">
+        {{#if FCTTIME}}
+            <a class="font-weight-bold">{{FCTTIME.civil}}</a>
+        {{else}}
+            <a class="font-weight-bold">Now</a>
+        {{/if}}
+        </div>
+        <div class="col-3 pl-4">
+            <img id="weather-pic" src="{{icon_url}}"></img>
+        </div>
+        <div class="col-3 pt-3">
+            <a id="temp" class="font-weight-bold">{{temp.english}}&deg;F</a>
+        </div>
+        <div class="col-3 pt-3">
+            {{#if pop}}
+                <a id="pop" class="font-weight-bold">{{pop}}%</a>
+            {{/if}}
+        </div>
+    </div>
+</script>
+
+<script>
+    weatherSource = $('#weather-template').html(),
+            weatherTemplate = Handlebars.compile(weatherSource),
+            weatherPlaceholder = document.getElementById('weather');
+
+/**
+ * Obtains parameters from the hash of the URL
+ * @return Object
+ */
+function getHashParams() {
+    var hashParams = {};
+    var e, r = /([^&;=]+)=?([^&;]*)/g,
+        q = window.location.hash.substring(1);
+    while (e = r.exec(q)) {
+        hashParams[e[1]] = decodeURIComponent(e[2]);
+    }
+    return hashParams;
+}
+
+var params = getHashParams();
+
+var access_token = params.access_token,
+    refresh_token = params.refresh_token,
+    error = params.error;
+
+if (error) {
+    alert('There was an error during the authentication');
+} else {
+    if (access_token) {
+        $("#access_token").val(access_token);
+        $("#refresh_token").val(refresh_token);
+        $.ajax({
+            url: 'https://api.spotify.com/v1/me',
+            headers: {
+                'Authorization': 'Bearer ' + access_token
+            },
+            success: function (response) {
+                console.log(access_token);
+                $('#login').hide();
+                $('#loggedin').show();
+            }
+        });
+    } else {
+        console.log("here")
+        // render initial screen
+        window.location = "/login";
+    }
+}
+refreshState();
+setInterval(function () {
+            setClock();
+        }, 1000);
+getWeather();
+
+function refreshState() {
+    $.ajax({
+        url: 'https://api.spotify.com/v1/me/player/currently-playing',
+        headers: {
+            'Authorization': 'Bearer ' + $("#access_token").val()
+        },
+        success: function (response) {
+            if (response != null) {
+                $("#isPlaying").val(response.is_playing);
+                $("#currentProgress").val(response.progress_ms);
+                $("#duration").val(response.item.duration_ms);
+                $("#song-title").text(response.item.name);
+                $("#artist").text(response.item.artists[0].name);
+                $("#album-art").attr('src', response.item.album.images[0].url);
+                $("#progress-slider").val(($("#currentProgress").val()/$("#duration").val()) * 1000);
+            } else {
+                $("#spotify-div").hide();
+            }
+            setTimeout(function() {refreshState();}, 3000);
+        }
+    });
+}
+
+function getWeather() {
+    var request = $.ajax({
+        url: 'http://api.wunderground.com/api/b4815fdab0723cdd/conditions/q/WI/Madison.json',
+            success: function (response) {
+                weatherPlaceholder.innerHTML = weatherTemplate({});
+                $("#temp").text((response.current_observation.temp_f).toString() + "°F");
+                $("#weather-pic").attr('src', response.current_observation.icon_url);
+                console.log(response);
+
+            }
+    });
+    request.done(function(old_response) {
+        $.ajax({
+        url: 'http://api.wunderground.com/api/b4815fdab0723cdd/hourly/q/WI/Madison.json',
+            success: function (response) {
+                console.log(response);
+                for (var i = 0; i < response.hourly_forecast.length; i++) {
+                    $("#weather").append(weatherTemplate(response.hourly_forecast[i]));
+                }
+                switch (old_response.current_observation.icon) {
+                    case "sunny":
+                        $("body").css("background-image: images/sunny.jpg");
+                        break;
+                    case "partlycloudy":
+                        if (new Date().getHours() >= 20) {
+                            $("body").attr("style", "background: url(images/partly-cloudy-night.png) no-repeat center fixed; background-size: cover;");
+                            break;
+                        }
+                        $("body").attr("style", "background: url(images/partly-cloudy.jpg) no-repeat center fixed; background-size: cover;");
+                        break;
+                    case "clear":
+                        $("body").attr("style", "background: url(images/clear-night.jpg) no-repeat center fixed; background-size: cover;");
+                        break;
+                    case "cloudy":
+                        $("body").attr("style", "background: url(images/cloudy.jpg) no-repeat center fixed; background-size: cover;");
+                        break;
+                    case "rain":
+                        $("body").attr("style", "background: url(images/rain.jpg) no-repeat center fixed; background-size: cover;");
+                        break;
+                    case "storm":
+                        $("body").attr("style", "background: url(images/storm.jpg) no-repeat center fixed; background-size: cover;");
+                        break;
+                }
+            }
+    })});
+}
+
+function setClock() {
+    var d = new Date();
+    var hours = d.getHours();
+    var mins = d.getMinutes();
+    var secs = d.getSeconds();
+    mins = (mins < 10 ? "0" : "") + mins;
+    secs = (secs < 10 ? "0" : "") + secs;
+    var timeOfDay = (hours < 12) ? "AM" : "PM";
+    hours = (hours > 12) ? hours - 12 : hours;
+    hours = (hours == 0) ? 12 : hours;
+    var timeString = hours + ":" + mins + ":" + secs + " " + timeOfDay;
+    $("#clock").text(timeString);
+}
+</script>
+</body>
+</html>
