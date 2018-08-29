@@ -140,6 +140,7 @@ function refreshState() {
         },
         success: function (response) {
             if (response != null) {
+                $("#spotify-div").show();
                 $("#isPlaying").val(response.is_playing);
                 $("#currentProgress").val(response.progress_ms);
                 $("#duration").val(response.item.duration_ms);
